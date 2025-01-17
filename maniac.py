@@ -19,7 +19,10 @@ def run_bot():
     youtube_base_url = 'https://www.youtube.com/'
     youtube_results_url = youtube_base_url + 'results?'
     youtube_watch_url = youtube_base_url + 'watch?v='
-    yt_dl_options = {"format": "bestaudio/best"}
+    yt_dl_options = {
+        "format": "bestaudio/best",
+        "cookiesfrombrowser": "cookies.txt"  # Temporal hasta que consigas cookies.txt
+    }
     ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
     ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
@@ -42,18 +45,12 @@ def run_bot():
             print(e)
 
         try:
-
             if youtube_base_url not in link:
                 query_string = urllib.parse.urlencode({
                     'search_query': link
                 })
-
-                content = urllib.request.urlopen(
-                    youtube_results_url + query_string
-                )
-
+                content = urllib.request.urlopen(youtube_results_url + query_string)
                 search_results = re.findall(r'/watch\?v=(.{11})', content.read().decode())
-
                 link = youtube_watch_url + search_results[0]
 
             loop = asyncio.get_event_loop()
