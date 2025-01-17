@@ -4,8 +4,7 @@ import os
 import asyncio
 import yt_dlp
 from dotenv import load_dotenv
-import urllib.parse
-import re
+import urllib.parse, urllib.request, re
 import webserver
 
 queues = {}
@@ -15,11 +14,10 @@ youtube_results_url = youtube_base_url + 'results?'
 youtube_watch_url = youtube_base_url + 'watch?v='
 yt_dl_options = {
     "format": "bestaudio/best",
-    "cookiefile": "cookies.txt",
-    "quiet": True  # Desactivar la salida en consola de yt-dlp
+    "cookiefile": "cookies.txt"
 }
 ytdl = yt_dlp.YoutubeDL(yt_dl_options)
-ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn -filter:a "volume=0.25"'}
+ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
 
 async def play_next(ctx):
     if queues.get(ctx.guild.id):
@@ -27,39 +25,36 @@ async def play_next(ctx):
         await play(ctx, link=link)
 
 async def play(ctx, *, link):
-    vc = voice_clients.get(ctx.guild.id)
-    if not vc or not vc.is_connected():
-        try:
+    try:
+        vc = voice_clients.get(ctx.guild.id)
+        if not vc or not vc.is_connected():
             vc = await ctx.author.voice.channel.connect()
             voice_clients[ctx.guild.id] = vc
-        except Exception as e:
-            await ctx.send(f"Error al conectar al canal de voz: {e}")
-            return
+    except Exception as e:
+        await ctx.send(f"Error al conectar al canal de voz: {e}")
+        return
 
     if youtube_base_url not in link:
         query_string = urllib.parse.urlencode({'search_query': link})
-        content = await asyncio.to_thread(urllib.request.urlopen, youtube_results_url + query_string)
+        content = urllib.request.urlopen(youtube_results_url + query_string)
         search_results = re.findall(r'/watch\?v=(.{11})', content.read().decode())
         link = youtube_watch_url + search_results[0]
 
-    # Obtener datos de la canción
-    data = await asyncio.to_thread(ytdl.extract_info, link, download=False)
+    data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
     song_url = data['url']
     title = data.get('title')
     thumbnail = data.get('thumbnail')
-
     player = discord.FFmpegOpusAudio(song_url, **ffmpeg_options)
 
-    embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.purple())
+    embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.blue())
     embed.set_image(url=thumbnail)
     await ctx.send(embed=embed, view=MusicControls(ctx))
 
-    # Reproducir la canción
-    vc.play(player, after=lambda e: asyncio.create_task(play_next(ctx)))
+    vc.play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
 
 class MusicControls(discord.ui.View):
     def __init__(self, ctx):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)  # Desactiva el timeout de la vista
         self.ctx = ctx
         self.is_paused = False
 
@@ -78,16 +73,25 @@ class MusicControls(discord.ui.View):
                 button.style = discord.ButtonStyle.danger
                 button.emoji = "⏸️"
 
-            await interaction.response.edit_message(view=self)
+            # Actualizamos el mensaje con la nueva vista
+            await interaction.response.edit_message(view=self)  # Actualiza el mensaje con la nueva vista
 
     @discord.ui.button(label="Skip", style=discord.ButtonStyle.primary, emoji="⏭️")
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = voice_clients.get(self.ctx.guild.id)
         if vc and (vc.is_playing() or vc.is_paused()):
+            # Deferimos la interacción para evitar que caduque
             await interaction.response.defer()  # Mantenemos la interacción activa
-            vc.stop()
+
+            vc.stop()  # Detiene la canción actual
+
+            # Esperamos brevemente para asegurarnos de que la canción se detenga antes de seguir
             await asyncio.sleep(1)
+
+            # Reproducimos la siguiente canción en la cola
             await play_next(self.ctx)
+
+            await interaction.response.defer()  # Asegúrate de hacer defer antes de cualquier respuesta adicional
 
 def run_bot():
     load_dotenv()
@@ -112,11 +116,9 @@ def run_bot():
             queues[ctx.guild.id] = []
         queues[ctx.guild.id].append(link)
 
-        # Obtención de datos asincrónica
-        data = await asyncio.to_thread(ytdl.extract_info, link, download=False)
+        data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
         title = data.get('title')
         await ctx.send(f"Se ha añadido **{title}** a la cola")
 
     webserver.keep_alive()
-    client.run(TOKEN, reconnect=True)
-
+    client.run(TOKEN, reconnect=True
