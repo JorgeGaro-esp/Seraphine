@@ -105,27 +105,16 @@ class MusicControls(discord.ui.View):
 
             await interaction.response.defer()  # Asegúrate de hacer defer antes de cualquier respuesta adicional
 
-@client.command(name="q")
-async def queue(ctx, *, link):
-    await ctx.message.delete()
-    if ctx.guild.id not in queues:
-        queues[ctx.guild.id] = []
-    queues[ctx.guild.id].append(link)
-
-    # Log la cola para verificar si se agrega correctamente
-    print(f"Queue for {ctx.guild.id}: {queues[ctx.guild.id]}")
-
-    data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
-    title = data.get('title')
-    await ctx.send(f"Se ha añadido **{title}** a la cola")
-
 def run_bot():
     load_dotenv()
     TOKEN = os.getenv('DISCORD_TOKEN')
     intents = discord.Intents.default()
     intents.message_content = True
+    
+    # Crear el objeto `client` antes de usarlo
     client = commands.Bot(command_prefix=".", intents=intents)
 
+    # Eventos y comandos deben estar dentro de esta función después de que `client` esté creado
     @client.event
     async def on_ready():
         print(f'{client.user} is now jamming')
@@ -134,6 +123,20 @@ def run_bot():
     async def play_command(ctx, *, link):
         await ctx.message.delete()
         await play(ctx, link=link)
+
+    @client.command(name="q")
+    async def queue(ctx, *, link):
+        await ctx.message.delete()
+        if ctx.guild.id not in queues:
+            queues[ctx.guild.id] = []
+        queues[ctx.guild.id].append(link)
+
+        # Log la cola para verificar si se agrega correctamente
+        print(f"Queue for {ctx.guild.id}: {queues[ctx.guild.id]}")
+
+        data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
+        title = data.get('title')
+        await ctx.send(f"Se ha añadido **{title}** a la cola")
 
     # Mantiene la web activa (si es necesario)
     webserver.keep_alive()
