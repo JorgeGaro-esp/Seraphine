@@ -72,9 +72,8 @@ class MusicControls(discord.ui.View):
                 button.label = "Pause"
                 button.style = discord.ButtonStyle.danger
                 button.emoji = "⏸️"
-            
-            # Deferimos la interacción antes de realizar cualquier otra acción
-            await interaction.response.defer()  # Esto asegura que no haya "Interacción fallida"
+
+            # Actualizamos el mensaje con la nueva vista
             await interaction.response.edit_message(view=self)  # Actualiza el mensaje con la nueva vista
 
     @discord.ui.button(label="Skip", style=discord.ButtonStyle.primary, emoji="⏭️")
@@ -91,6 +90,7 @@ class MusicControls(discord.ui.View):
 
             # Reproducimos la siguiente canción en la cola
             await play_next(self.ctx)
+
             await interaction.response.defer()  # Asegúrate de hacer defer antes de cualquier respuesta adicional
 
 def run_bot():
