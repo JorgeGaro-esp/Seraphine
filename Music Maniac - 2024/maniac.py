@@ -5,6 +5,7 @@ import asyncio
 import yt_dlp
 from dotenv import load_dotenv
 import urllib.parse, urllib.request, re
+import webserver
 
 def run_bot():
     load_dotenv()
@@ -102,5 +103,6 @@ def run_bot():
             queues[ctx.guild.id] = []
         queues[ctx.guild.id].append(url)
         await ctx.send("Added to queue!")
-
+        
+    webserver.keep_alive()
     client.run(TOKEN)
