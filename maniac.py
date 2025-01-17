@@ -14,28 +14,30 @@ class MusicControls(discord.ui.View):
         self.voice_clients = voice_clients
         self.queues = queues
         self.client = client
+        self.is_paused = False
 
-    @discord.ui.button(label="Pause", style=discord.ButtonStyle.secondary, emoji="⏸️")
-    async def pause(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Pause", style=discord.ButtonStyle.danger, emoji="⏸️")
+    async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = self.voice_clients.get(self.ctx.guild.id)
-        if vc and vc.is_playing():
-            vc.pause()
-            await interaction.response.send_message("Paused ⏸️", ephemeral=True)
-
-    @discord.ui.button(label="Resume", style=discord.ButtonStyle.success, emoji="▶️")
-    async def resume(self, interaction: discord.Interaction, button: discord.ui.Button):
-        vc = self.voice_clients.get(self.ctx.guild.id)
-        if vc and vc.is_paused():
-            vc.resume()
-            await interaction.response.send_message("Resumed ▶️", ephemeral=True)
+        if vc:
+            if vc.is_playing():
+                vc.pause()
+                button.label = "Resume"
+                button.style = discord.ButtonStyle.success
+                button.emoji = "▶️"
+            elif vc.is_paused():
+                vc.resume()
+                button.label = "Pause"
+                button.style = discord.ButtonStyle.danger
+                button.emoji = "⏸️"
+            await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="Skip", style=discord.ButtonStyle.primary, emoji="⏭️")
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = self.voice_clients.get(self.ctx.guild.id)
         if vc and vc.is_playing():
             vc.stop()
-            await interaction.response.send_message("Skipped ⏭️", ephemeral=True)
-
+            await interaction.response.defer()
 
 def run_bot():
     load_dotenv()
@@ -66,7 +68,7 @@ def run_bot():
             link = queues[ctx.guild.id].pop(0)
             await play(ctx, link=link)
 
-    @client.command(name="play")
+    @client.command(name="p")
     async def play(ctx, *, link):
         await ctx.message.delete()
         try:
@@ -90,11 +92,23 @@ def run_bot():
         thumbnail = data.get('thumbnail')
         player = discord.FFmpegOpusAudio(song_url, **ffmpeg_options)
 
-        embed = discord.Embed(title=f'Now Playing: {title}', color=discord.Color.blue())
-        embed.set_thumbnail(url=thumbnail)
+        embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.blue())
+        embed.set_image(url=thumbnail)
         await ctx.send(embed=embed, view=MusicControls(ctx, voice_clients, queues, client))
 
         vc.play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
 
+    @client.command(name="q")
+    async def queue(ctx, *, link):
+        await ctx.message.delete()
+        if ctx.guild.id not in queues:
+            queues[ctx.guild.id] = []
+        queues[ctx.guild.id].append(link)
+
+        data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
+        title = data.get('title')
+        await ctx.send(f"Se ha añadido **{title}** a la cola")
+
     webserver.keep_alive()
     client.run(TOKEN, reconnect=True)
+
