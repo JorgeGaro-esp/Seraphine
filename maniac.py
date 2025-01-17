@@ -121,4 +121,4 @@ def run_bot():
         await ctx.send(f"Se ha añadido **{title}** a la cola")
 
     webserver.keep_alive()
-    client.run(TOKEN, reconnect=True
+    client.run(TOKEN, reconnect=True)
