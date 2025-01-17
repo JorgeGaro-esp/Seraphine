@@ -9,11 +9,48 @@ import webserver
 
 queues = {}
 voice_clients = {}
+youtube_base_url = 'https://www.youtube.com/'
+youtube_results_url = youtube_base_url + 'results?'
+youtube_watch_url = youtube_base_url + 'watch?v='
+yt_dl_options = {
+    "format": "bestaudio/best",
+    "cookiefile": "cookies.txt"
+}
+ytdl = yt_dlp.YoutubeDL(yt_dl_options)
+ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
 
 async def play_next(ctx):
     if queues.get(ctx.guild.id):
         link = queues[ctx.guild.id].pop(0)
         await play(ctx, link=link)
+
+async def play(ctx, *, link):
+    try:
+        vc = voice_clients.get(ctx.guild.id)
+        if not vc or not vc.is_connected():
+            vc = await ctx.author.voice.channel.connect()
+            voice_clients[ctx.guild.id] = vc
+    except Exception as e:
+        await ctx.send(f"Error al conectar al canal de voz: {e}")
+        return
+
+    if youtube_base_url not in link:
+        query_string = urllib.parse.urlencode({'search_query': link})
+        content = urllib.request.urlopen(youtube_results_url + query_string)
+        search_results = re.findall(r'/watch\?v=(.{11})', content.read().decode())
+        link = youtube_watch_url + search_results[0]
+
+    data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
+    song_url = data['url']
+    title = data.get('title')
+    thumbnail = data.get('thumbnail')
+    player = discord.FFmpegOpusAudio(song_url, **ffmpeg_options)
+
+    embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.blue())
+    embed.set_image(url=thumbnail)
+    await ctx.send(embed=embed, view=MusicControls(ctx, voice_clients, queues, client))
+
+    vc.play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
 
 class MusicControls(discord.ui.View):
     def __init__(self, ctx, voice_clients, queues, client):
@@ -56,50 +93,14 @@ def run_bot():
     intents.message_content = True
     client = commands.Bot(command_prefix=".", intents=intents)
 
-    youtube_base_url = 'https://www.youtube.com/'
-    youtube_results_url = youtube_base_url + 'results?'
-    youtube_watch_url = youtube_base_url + 'watch?v='
-    yt_dl_options = {
-        "format": "bestaudio/best",
-        "cookiefile": "cookies.txt"
-    }
-    ytdl = yt_dlp.YoutubeDL(yt_dl_options)
-
-    ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
-
     @client.event
     async def on_ready():
         print(f'{client.user} is now jamming')
 
     @client.command(name="p")
-    async def play(ctx, *, link):
+    async def play_command(ctx, *, link):
         await ctx.message.delete()
-        try:
-            vc = voice_clients.get(ctx.guild.id)
-            if not vc or not vc.is_connected():
-                vc = await ctx.author.voice.channel.connect()
-                voice_clients[ctx.guild.id] = vc
-        except Exception as e:
-            await ctx.send(f"Error al conectar al canal de voz: {e}")
-            return
-
-        if youtube_base_url not in link:
-            query_string = urllib.parse.urlencode({'search_query': link})
-            content = urllib.request.urlopen(youtube_results_url + query_string)
-            search_results = re.findall(r'/watch\?v=(.{11})', content.read().decode())
-            link = youtube_watch_url + search_results[0]
-
-        data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
-        song_url = data['url']
-        title = data.get('title')
-        thumbnail = data.get('thumbnail')
-        player = discord.FFmpegOpusAudio(song_url, **ffmpeg_options)
-
-        embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.blue())
-        embed.set_image(url=thumbnail)
-        await ctx.send(embed=embed, view=MusicControls(ctx, voice_clients, queues, client))
-
-        vc.play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
+        await play(ctx, link=link)
 
     @client.command(name="q")
     async def queue(ctx, *, link):
