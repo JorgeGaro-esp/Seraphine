@@ -20,9 +20,16 @@ ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
 
 async def play_next(ctx):
-    if queues.get(ctx.guild.id):
-        link = queues[ctx.guild.id].pop(0)
-        await play(ctx, link=link)
+    # Verifica si hay canciones en la cola
+    if queues.get(ctx.guild.id) and queues[ctx.guild.id]:
+        link = queues[ctx.guild.id].pop(0)  # Obtener la siguiente canción
+        await play(ctx, link=link)  # Reproducir la siguiente canción
+    else:
+        # Si la cola está vacía, desconectar y avisar al usuario
+        vc = voice_clients.get(ctx.guild.id)
+        if vc and vc.is_connected():
+            await vc.disconnect()  # Desconectar del canal de voz
+        await ctx.send("La cola está vacía. No hay más canciones para reproducir.")
 
 async def play(ctx, *, link):
     try:
@@ -34,10 +41,15 @@ async def play(ctx, *, link):
         await ctx.send(f"Error al conectar al canal de voz: {e}")
         return
 
+    # Si el enlace no es de YouTube, buscar el video
     if youtube_base_url not in link:
         query_string = urllib.parse.urlencode({'search_query': link})
         content = urllib.request.urlopen(youtube_results_url + query_string)
         search_results = re.findall(r'/watch\?v=(.{11})', content.read().decode())
+        # Verificar si encontramos resultados antes de intentar acceder
+        if not search_results:
+            await ctx.send("No se encontraron resultados para la búsqueda.")
+            return
         link = youtube_watch_url + search_results[0]
 
     data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
@@ -93,6 +105,20 @@ class MusicControls(discord.ui.View):
 
             await interaction.response.defer()  # Asegúrate de hacer defer antes de cualquier respuesta adicional
 
+@client.command(name="q")
+async def queue(ctx, *, link):
+    await ctx.message.delete()
+    if ctx.guild.id not in queues:
+        queues[ctx.guild.id] = []
+    queues[ctx.guild.id].append(link)
+
+    # Log la cola para verificar si se agrega correctamente
+    print(f"Queue for {ctx.guild.id}: {queues[ctx.guild.id]}")
+
+    data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
+    title = data.get('title')
+    await ctx.send(f"Se ha añadido **{title}** a la cola")
+
 def run_bot():
     load_dotenv()
     TOKEN = os.getenv('DISCORD_TOKEN')
@@ -109,16 +135,8 @@ def run_bot():
         await ctx.message.delete()
         await play(ctx, link=link)
 
-    @client.command(name="q")
-    async def queue(ctx, *, link):
-        await ctx.message.delete()
-        if ctx.guild.id not in queues:
-            queues[ctx.guild.id] = []
-        queues[ctx.guild.id].append(link)
-
-        data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
-        title = data.get('title')
-        await ctx.send(f"Se ha añadido **{title}** a la cola")
-
+    # Mantiene la web activa (si es necesario)
     webserver.keep_alive()
+
+    # Corre el bot
     client.run(TOKEN, reconnect=True)
