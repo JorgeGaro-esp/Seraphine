@@ -58,7 +58,7 @@ async def play(ctx, *, link):
     thumbnail = data.get('thumbnail')
     player = discord.FFmpegOpusAudio(song_url, **ffmpeg_options)
 
-    embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.purple())
+    embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.blue())
     embed.set_image(url=thumbnail)
     await ctx.send(embed=embed, view=MusicControls(ctx))
 
@@ -93,7 +93,7 @@ class MusicControls(discord.ui.View):
         vc = voice_clients.get(self.ctx.guild.id)
         if vc and (vc.is_playing() or vc.is_paused()):
             # Deferimos la interacción para evitar que caduque
-            await interaction.response.defer()  # Mantenemos la interacción activa
+            await interaction.response.defer()  # Solo lo hacemos una vez
 
             vc.stop()  # Detiene la canción actual
 
@@ -103,7 +103,8 @@ class MusicControls(discord.ui.View):
             # Reproducimos la siguiente canción en la cola
             await play_next(self.ctx)
 
-            await interaction.response.defer()  # Asegúrate de hacer defer antes de cualquier respuesta adicional
+            # Confirmamos la acción (puedes agregar algo como una respuesta de mensaje si es necesario)
+            await interaction.followup.send("La canción se ha saltado y ahora se está reproduciendo la siguiente.")
 
 def run_bot():
     load_dotenv()
