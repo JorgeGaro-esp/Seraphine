@@ -21,11 +21,11 @@ def run_bot():
     youtube_watch_url = youtube_base_url + 'watch?v='
     yt_dl_options = {
         "format": "bestaudio/best",
-        "cookiefile": "cookies.txt"  # Asegúrate de que cookies.txt esté en el directorio correcto
+        "cookiefile": "cookies.txt"
     }
     ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
-    ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
+    ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn -filter:a "volume=0.25"'}
 
     @client.event
     async def on_ready():
@@ -39,14 +39,12 @@ def run_bot():
     @client.command(name="play")
     async def play(ctx, *, link):
         try:
-            # Intento de conexión al canal de voz
             voice_client = await ctx.author.voice.channel.connect()
             voice_clients[voice_client.guild.id] = voice_client
         except Exception as e:
             print(f"Error al conectar al canal de voz: {e}")
 
         try:
-            # Verificación de la URL y obtención de información de YouTube
             if youtube_base_url not in link:
                 query_string = urllib.parse.urlencode({'search_query': link})
                 content = urllib.request.urlopen(youtube_results_url + query_string)
@@ -54,31 +52,24 @@ def run_bot():
                 link = youtube_watch_url + search_results[0]
 
             loop = asyncio.get_event_loop()
-            try:
-                data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
-            except Exception as e:
-                print(f"Error al extraer información de YouTube: {e}")
-                return
-
+            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
             song = data['url']
             player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
 
-            # Reproducción del audio en el canal de voz
-            try:
-                voice_clients[ctx.guild.id].play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
-            except Exception as e:
-                print(f"Error al reproducir la canción: {e}")
+            voice_clients[ctx.guild.id].play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
+            await ctx.send("Reproduciendo canción!")
         except Exception as e:
             print(f"Error general al intentar reproducir la canción: {e}")
+            await ctx.send("No se pudo reproducir la canción.")
 
     @client.command(name="clear_queue")
     async def clear_queue(ctx):
         try:
             if ctx.guild.id in queues:
                 queues[ctx.guild.id].clear()
-                await ctx.send("Queue cleared!")
+                await ctx.send("Cola limpiada!")
             else:
-                await ctx.send("There is no queue to clear")
+                await ctx.send("No hay cola que limpiar.")
         except Exception as e:
             print(f"Error al limpiar la cola: {e}")
 
@@ -86,15 +77,19 @@ def run_bot():
     async def pause(ctx):
         try:
             voice_clients[ctx.guild.id].pause()
+            await ctx.send("Canción pausada!")
         except Exception as e:
             print(f"Error al pausar la reproducción: {e}")
+            await ctx.send("No se pudo pausar la canción.")
 
     @client.command(name="resume")
     async def resume(ctx):
         try:
             voice_clients[ctx.guild.id].resume()
+            await ctx.send("Canción reanudada!")
         except Exception as e:
             print(f"Error al reanudar la reproducción: {e}")
+            await ctx.send("No se pudo reanudar la canción.")
 
     @client.command(name="stop")
     async def stop(ctx):
@@ -102,8 +97,10 @@ def run_bot():
             voice_clients[ctx.guild.id].stop()
             await voice_clients[ctx.guild.id].disconnect()
             del voice_clients[ctx.guild.id]
+            await ctx.send("Reproducción detenida y desconectado del canal de voz!")
         except Exception as e:
             print(f"Error al detener la reproducción: {e}")
+            await ctx.send("No se pudo detener la reproducción.")
 
     @client.command(name="queue")
     async def queue(ctx, *, url):
@@ -111,9 +108,10 @@ def run_bot():
             if ctx.guild.id not in queues:
                 queues[ctx.guild.id] = []
             queues[ctx.guild.id].append(url)
-            await ctx.send("Added to queue!")
+            await ctx.send("Añadido a la cola!")
         except Exception as e:
             print(f"Error al agregar a la cola: {e}")
+            await ctx.send("No se pudo añadir a la cola.")
 
     webserver.keep_alive()
     client.run(TOKEN)
