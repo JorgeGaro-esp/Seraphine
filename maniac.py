@@ -72,9 +72,10 @@ class MusicControls(discord.ui.View):
                 button.label = "Pause"
                 button.style = discord.ButtonStyle.danger
                 button.emoji = "⏸️"
+            
             # Deferimos la interacción antes de realizar cualquier otra acción
             await interaction.response.defer()  # Esto asegura que no haya "Interacción fallida"
-            await interaction.response.edit_message(view=self)
+            await interaction.response.edit_message(view=self)  # Actualiza el mensaje con la nueva vista
 
     @discord.ui.button(label="Skip", style=discord.ButtonStyle.primary, emoji="⏭️")
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -121,4 +122,3 @@ def run_bot():
 
     webserver.keep_alive()
     client.run(TOKEN, reconnect=True)
-
