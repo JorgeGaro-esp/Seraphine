@@ -7,6 +7,14 @@ from dotenv import load_dotenv
 import urllib.parse, urllib.request, re
 import webserver
 
+queues = {}
+voice_clients = {}
+
+async def play_next(ctx):
+    if queues.get(ctx.guild.id):
+        link = queues[ctx.guild.id].pop(0)
+        await play(ctx, link=link)
+
 class MusicControls(discord.ui.View):
     def __init__(self, ctx, voice_clients, queues, client):
         super().__init__(timeout=None)
@@ -37,7 +45,7 @@ class MusicControls(discord.ui.View):
         vc = self.voice_clients.get(self.ctx.guild.id)
         if vc and (vc.is_playing() or vc.is_paused()):
             vc.stop()
-            await asyncio.sleep(1)  # Asegura que FFmpeg se cierre correctamente
+            await asyncio.sleep(1)
             await play_next(self.ctx)
             await interaction.response.defer()
 
@@ -48,8 +56,6 @@ def run_bot():
     intents.message_content = True
     client = commands.Bot(command_prefix=".", intents=intents)
 
-    queues = {}
-    voice_clients = {}
     youtube_base_url = 'https://www.youtube.com/'
     youtube_results_url = youtube_base_url + 'results?'
     youtube_watch_url = youtube_base_url + 'watch?v='
@@ -64,11 +70,6 @@ def run_bot():
     @client.event
     async def on_ready():
         print(f'{client.user} is now jamming')
-
-    async def play_next(ctx):
-        if queues.get(ctx.guild.id):
-            link = queues[ctx.guild.id].pop(0)
-            await play(ctx, link=link)
 
     @client.command(name="p")
     async def play(ctx, *, link):
