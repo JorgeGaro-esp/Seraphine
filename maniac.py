@@ -107,6 +107,7 @@ class MusicControls(discord.ui.View):
 class MusicBot(commands.Bot):
     async def on_ready(self):
         print(f'{self.user} is now jamming')
+        print(f"Comandos cargados: {[command.name for command in self.commands]}")
 
     @commands.command(name="p")
     async def play_command(self, ctx, *, link):
