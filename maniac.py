@@ -34,6 +34,14 @@ async def play(ctx, *, link):
     # Reutilizar la conexión de voz si ya estamos conectados
     if not vc or not vc.is_connected():
         try:
+            # Comprobar si el bot tiene permisos para unirse y hablar
+            if not ctx.author.voice:
+                await ctx.send("¡Necesitas estar en un canal de voz para reproducir música!")
+                return
+            if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect or not ctx.author.voice.channel.permissions_for(ctx.guild.me).speak:
+                await ctx.send("No tengo permisos para unirme o hablar en ese canal de voz.")
+                return
+            
             vc = await ctx.author.voice.channel.connect()
             voice_clients[ctx.guild.id] = vc
         except Exception as e:
@@ -96,27 +104,27 @@ class MusicControls(discord.ui.View):
             await asyncio.sleep(1)
             await play_next(self.ctx)
 
-def run_bot():
-    load_dotenv()
-    TOKEN = os.getenv('DISCORD_TOKEN')
-    intents = discord.Intents.default()
-    intents.message_content = True
-    client = commands.Bot(command_prefix=".", intents=intents)
+class MusicBot(commands.Bot):
+    async def on_ready(self):
+        print(f'{self.user} is now jamming')
 
-    @client.event
-    async def on_ready():
-        print(f'{client.user} is now jamming')
-
-    @client.command(name="p")
-    async def play_command(ctx, *, link):
+    @commands.command(name="p")
+    async def play_command(self, ctx, *, link):
         """ Comando para reproducir música """
-        await ctx.message.delete()
+        try:
+            await ctx.message.delete()
+        except discord.errors.NotFound:
+            pass  # El mensaje ya fue eliminado
         await play(ctx, link=link)
 
-    @client.command(name="q")
-    async def queue(ctx, *, link):
+    @commands.command(name="q")
+    async def queue(self, ctx, *, link):
         """ Comando para agregar canciones a la cola """
-        await ctx.message.delete()
+        try:
+            await ctx.message.delete()
+        except discord.errors.NotFound:
+            pass  # El mensaje ya fue eliminado
+
         if ctx.guild.id not in queues:
             queues[ctx.guild.id] = []
         queues[ctx.guild.id].append(link)
@@ -125,6 +133,34 @@ def run_bot():
         data = await asyncio.to_thread(ytdl.extract_info, link, download=False)
         title = data.get('title')
         await ctx.send(f"Se ha añadido **{title}** a la cola")
+
+    @commands.command(name="queue")
+    async def show_queue(self, ctx):
+        """ Comando para ver la cola de reproducción """
+        if ctx.guild.id not in queues or not queues[ctx.guild.id]:
+            await ctx.send("La cola está vacía.")
+            return
+        
+        queue_list = "\n".join([f"{idx+1}. {item}" for idx, item in enumerate(queues[ctx.guild.id])])
+        await ctx.send(f"**Cola de música:**\n{queue_list}")
+
+    @commands.command(name="disconnect")
+    async def disconnect_bot(self, ctx):
+        """ Comando para desconectar el bot del canal de voz """
+        vc = voice_clients.get(ctx.guild.id)
+        if vc and vc.is_connected():
+            await vc.disconnect()
+            del voice_clients[ctx.guild.id]
+            await ctx.send("Me he desconectado del canal de voz.")
+        else:
+            await ctx.send("No estoy conectado a un canal de voz.")
+
+def run_bot():
+    load_dotenv()
+    TOKEN = os.getenv('DISCORD_TOKEN')
+    intents = discord.Intents.default()
+    intents.message_content = True
+    client = MusicBot(command_prefix=".", intents=intents)
 
     webserver.keep_alive()
     client.run(TOKEN, reconnect=True)
