@@ -35,8 +35,10 @@ class MusicControls(discord.ui.View):
     @discord.ui.button(label="Skip", style=discord.ButtonStyle.primary, emoji="⏭️")
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = self.voice_clients.get(self.ctx.guild.id)
-        if vc and vc.is_playing():
+        if vc and (vc.is_playing() or vc.is_paused()):
             vc.stop()
+            await asyncio.sleep(1)  # Asegura que FFmpeg se cierre correctamente
+            await play_next(self.ctx)
             await interaction.response.defer()
 
 def run_bot():
@@ -64,7 +66,7 @@ def run_bot():
         print(f'{client.user} is now jamming')
 
     async def play_next(ctx):
-        if queues[ctx.guild.id]:
+        if queues.get(ctx.guild.id):
             link = queues[ctx.guild.id].pop(0)
             await play(ctx, link=link)
 
@@ -111,4 +113,3 @@ def run_bot():
 
     webserver.keep_alive()
     client.run(TOKEN, reconnect=True)
-
