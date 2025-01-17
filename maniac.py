@@ -58,7 +58,7 @@ async def play(ctx, *, link):
     thumbnail = data.get('thumbnail')
     player = discord.FFmpegOpusAudio(song_url, **ffmpeg_options)
 
-    embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.blue())
+    embed = discord.Embed(title=f'**🎵 Now Playing: {title}**', color=discord.Color.purple())
     embed.set_image(url=thumbnail)
     await ctx.send(embed=embed, view=MusicControls(ctx))
 
