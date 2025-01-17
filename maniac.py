@@ -21,7 +21,7 @@ def run_bot():
     youtube_watch_url = youtube_base_url + 'watch?v='
     yt_dl_options = {
         "format": "bestaudio/best",
-        "cookiesfrombrowser": "cookies.txt"  # Asegúrate de que cookies.txt esté en el directorio correcto
+        "cookiefile": "cookies.txt"  # Asegúrate de que cookies.txt esté en el directorio correcto
     }
     ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
