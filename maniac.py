@@ -97,4 +97,4 @@ def run_bot():
         vc.play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
 
     webserver.keep_alive()
-    client.run(TOKEN)
+    client.run(TOKEN, reconnect=True)
