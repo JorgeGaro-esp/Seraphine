@@ -104,11 +104,12 @@ class MusicControls(discord.ui.View):
             await asyncio.sleep(1)
             await play_next(self.ctx)
 
+# Clase para el Bot, usando commands.Bot
 class MusicBot(commands.Bot):
     async def on_ready(self):
         print(f'{self.user} is now jamming')
-        print(f"Comandos cargados: {[command.name for command in self.commands]}")
 
+    # Definir el comando 'p' correctamente
     @commands.command(name="p")
     async def play_command(self, ctx, *, link):
         """ Comando para reproducir música """
